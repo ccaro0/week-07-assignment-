@@ -1,8 +1,9 @@
-import { gemini25FlashLite, googleAI } from "@genkit-ai/googleai";
+import { vertexAI } from "@genkit-ai/google-genai";
 import { genkit } from "genkit";
 import { getReviewsByRestaurantId } from "@/src/lib/firebase/firestore.js";
 import { getAuthenticatedAppForUser } from "@/src/lib/firebase/serverApp";
 import { getFirestore } from "firebase/firestore";
+
 
 export async function GeminiSummary({ restaurantId }) {
   const { firebaseServerApp } = await getAuthenticatedAppForUser();
@@ -29,13 +30,20 @@ export async function GeminiSummary({ restaurantId }) {
       );
     }
 
-    // Configure a Genkit instance.
+    // Vertex AI uses the Firebase project's Cloud Billing account.
+    // On App Hosting the runtime service account is the credential.
     const ai = genkit({
-      plugins: [googleAI()],
-      model: gemini25FlashLite, // set default model
+      plugins: [
+        vertexAI({
+          projectId: "week-07-friendlyeats-codelab",
+          location: "global",
+        }),
+      ],
+      model: vertexAI.model("gemini-3.5-flash-lite"),
     });
     const { text } = await ai.generate(prompt);
 
+    
     return (
       <div className="restaurant__review_summary">
         <p>{text}</p>

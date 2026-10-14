@@ -6,12 +6,14 @@ export function Review({ rating, text, timestamp }) {
       <ul className="restaurant__rating">{renderStars(rating)}</ul>
       <p>{text}</p>
 
+
+
       <time>
         {new Intl.DateTimeFormat("en-GB", {
           dateStyle: "medium",
-          timeZone: "UTC",
-        }).format(new Date(timestamp))}
+        }).format(timestamp)}
       </time>
+
     </li>
   );
 }
