@@ -35,55 +35,70 @@ export async function updateRestaurantImageReference(
   }
 }
 
-//
+// Update the restaurant totals and write the new review in one transaction
 const updateWithRating = async (
-  transaction,
-  docRef,
-  newRatingDocument,
-  review
+  transaction, // Firestore transaction that can read and write atomically
+  docRef, // reference to the restaurant document being reviewed
+  newRatingDocument, // reference for the new document in the ratings subcollection
+  review // rating, text, and user id submitted from the form
 ) => {
+  // Read the current restaurant inside the transaction
   const restaurant = await transaction.get(docRef);
+  // Fields already stored on that restaurant
   const data = restaurant.data();
+  // Add one to the existing count, or start at 1 when this is the first review
   const newNumRatings = data?.numRatings ? data.numRatings + 1 : 1;
+  // Add this review's numeric rating to the running sum
   const newSumRating = (data?.sumRating || 0) + Number(review.rating);
+  // Average is the new sum divided by the new count
   const newAverage = newSumRating / newNumRatings;
 
+  // Write the updated count, sum, and average back onto the restaurant
   transaction.update(docRef, {
-    numRatings: newNumRatings,
-    sumRating: newSumRating,
-    avgRating: newAverage,
+    numRatings: newNumRatings, // how many reviews the restaurant now has
+    sumRating: newSumRating, // total of every star rating
+    avgRating: newAverage, // mean star rating shown on the card
   });
 
+  // Create the review document with the form fields and the current time
   transaction.set(newRatingDocument, {
-    ...review,
-    timestamp: Timestamp.fromDate(new Date()),
+    ...review, // copy text, rating, and userId from the form
+    timestamp: Timestamp.fromDate(new Date()), // store when the review was submitted
   });
 };
 
+// Save one review and update that restaurant's rating totals together
 export async function addReviewToRestaurant(db, restaurantId, review) {
+  // Refuse to write when the caller did not name a restaurant
   if (!restaurantId) {
     throw new Error("No restaurant ID has been provided.");
   }
 
+  // Refuse to write when the caller did not pass a review
   if (!review) {
     throw new Error("A valid review has not been provided.");
   }
 
+  // Roll back both writes if either the restaurant update or the review insert fails
   try {
+    // Point at the restaurant document that will receive the new totals
     const docRef = doc(collection(db, "restaurants"), restaurantId);
+    // Reserve a new auto-id document in that restaurant's ratings subcollection
     const newRatingDocument = doc(
       collection(db, `restaurants/${restaurantId}/ratings`),
     );
 
-    // corrected line
+    // Run the read and both writes as one atomic transaction
     await runTransaction(db, (transaction) =>
       updateWithRating(transaction, docRef, newRatingDocument, review),
     );
   } catch (error) {
+    // Print the failure before rethrowing it to the Server Action
     console.error(
       "There was an error adding the rating to the restaurant",
       error,
     );
+    // Let the caller see that the review was not saved
     throw error;
   }
 }
